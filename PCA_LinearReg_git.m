@@ -45,60 +45,55 @@ for mouse = 1:4
     time_shift=0;
     
     %lin reg params
-    numval_trials=10; %MUST BE 10 in ver 15 and after
-    num_perms_lambda=500; %(must be at least 2) %num iterations of testing for R2 (on diff permutations)
+    numval_trials=10;
+    num_perms_lambda=500; %num iterations of testing for R2 (on diff permutations)
     
     %exclusion criteria
-    minfr=1; % 3, Hz (Set to 0 to turn off, ie for making cum sum of FRs fro fig 2)
-    slopeThresh=0.2; %0.3, MAX value for slope (Set to inf to turn off) This is the pdist change on the waveform
-    fracfrFactor=1.5; %(Set to inf to turn off)
+    minfr=1;
+    slopeThresh=0.2; %Max value for slope (pdist change on the waveform)
+    fracfrFactor=1.5;
     
     %PCA criteria
-    numPCs=6; %for PCA %had been 4 (tried 6 for comparison with EMG)
+    numPCs=6;
     numPCs_emg=6;
     
     %similarity index alignment
-    PCAdim = 6; %had been 4 (tried 6 for comparison with EMG)
+    PCAdim = 6; 
     
-    %cleaning criterion
+    %filtering for relation to muscle activity criterion
     numPCs_forClean=6;
     
-    %subtypes criteria
-    width_IN=0.4167; %UPDATED 6/10/19 based on vgat data
+    %subtypes criteria (based on vgat data)
+    width_IN=0.4167;
     width_pyr=0.4167;
     
+    % only sessions passing performance criteria included
     if strcmp('A32',mouse_name)
-        drop_sessions=[4,9];  % new hard th exclusions
+        drop_sessions=[4,9];
     elseif strcmp('A33',mouse_name)
         drop_sessions=[1,2,4,5,6,8,10,11,16,17,18];
     elseif strcmp('A35',mouse_name)
-        drop_sessions=[2:8,15,17]; % new hard th exclusions
+        drop_sessions=[2:8,15,17];
     elseif strcmp('A36',mouse_name)
-        drop_sessions=[4,7,9,10]; % new hard th exclusions
+        drop_sessions=[4,7,9,10]; %
     end
     
     
     %% Load Data and Parameters
+    % waveform widths taken from 1.5 ms window
     samplingrate=30000;
     ms2samp=0.001*samplingrate/downsample_int;
     sr=0.001*ms2samp;
     
-    load(strcat(data_dir_root,mouse_name,'_emg_spikes.mat'));
     
-    load(strcat(data_dir_root,mouse_name,'_widths_tot_1point5ms_FILTERED.mat'));
-    load(strcat(data_dir_root,mouse_name,'_allsesh_waveform_data_filtered.mat'));
-    load(strcat(data_dir_root,mouse_name,'_waveform_stability_data'));
-    
-    waveform_data=eval(strcat(mouse_name,'_allsesh_waveform_data_filtered'));
-    slopes_data=data;
-    
+    load(strcat(data_dir_root,mouse_name,'_ephys_trial_data.mat'));
+    mouse_data = edc_pl_trial_data;
+
     % correct errors
     % in A35 session 6, bug where only 2 units  of 23 load in save spike times,
-    % for now, delete the 21 that are not showing up,
-    % ie keep # 1 (64) and # 7 (193)
+    % for now, delete the 21 that are not showing up, ie keep # 1 (64) and # 7 (193)
     if strcmp('A35',mouse_name)
-        waveform_data(6).meanWF=[waveform_data(6).meanWF(1,:); waveform_data(6).meanWF(7,:)];
-        widths_new([152:156 158:173])=[];
+        widths_waveforms([152:156 158:173])=[];
     end
     
     %patch uneven number
@@ -108,14 +103,9 @@ for mouse = 1:4
         mouse_data(3).firingrate(12)=[];
     end
     %note, A36, session 3, there is 1 waveform missing (total neurons=34 but
-    %total waveforms=33)
-    
-    if strcmp('A33',mouse_name)
-        width_15ms=widths_new;
-    elseif strcmp('A35',mouse_name)
-        width_15ms=widths_new;
-    end
-    
+    %total waveforms=33) 
+
+    width_15ms = widths_waveforms; % waveforms taken from 1.5 ms window
     %% drop bad sessions
     
     %create vector with session number and neuron number of each neuron
@@ -128,9 +118,6 @@ for mouse = 1:4
     neuron_origin_ID=[neuron_session_ID neuron_number_ID'];
     
     if ~isempty(drop_sessions)
-        mouse_data(drop_sessions)=[];
-        waveform_data(drop_sessions)=[];
-        slopes_data(drop_sessions)=[];
         throw_vec=zeros(length(neuron_session_ID),1);
         for i=1:length(drop_sessions)
             throw_vec=throw_vec+(neuron_session_ID==drop_sessions(i));
@@ -192,7 +179,7 @@ for mouse = 1:4
         end
         
         %use slope of pdist (WF stability) to exclude Ns
-        dropNeurs{j}=[dropNeurs{j} find(slopes_data(j).slopes>=slopeThresh);];
+        dropNeurs{j}=[dropNeurs{j} find(waveform_data(j).pdist_slopes>=slopeThresh);];
         dropNeurs{j}=unique(dropNeurs{j});
         keepVec(dropNeurs{j})=0;
         keepVecTot=[keepVecTot keepVec];
@@ -2455,8 +2442,6 @@ for mouse = 1:4
     end
     
     %% save analysis data
-    %         Data_fr_and_clean_all=struct;
-    %         Data_fr_and_clean_pyr=struct;
     
     for i=1:4
         Data_fr_and_clean_all(i).fr=Data(i).fr;
@@ -2472,7 +2457,7 @@ for mouse = 1:4
     if saveon
         save(filename,'mouse_data','conds','muscle_names','neurons_total','neurons_select','fracfrFactor','minfr','slopeThresh',...
             'num_perms_lambda','numPCs','numPCs_emg','numPCs_forClean','trial_idxs','neuron_origin_ID','drop_sessions','totalfrCell',...
-            'slopes_data','width_IN','width_pyr','Data_fr_and_clean_all','Data_fr_and_clean_pyr',...
+            'waveform_data','width_IN','width_pyr','Data_fr_and_clean_all','Data_fr_and_clean_pyr',...
             'Data_subtypes','width_15ms_keep','waveforms_select',...
             'explaineds_all','explaineds_pyr','explaineds_emg','explaineds_all_clean','explaineds_pyr_clean',...
             'align_tags','align_all','align_pyr','align_all_clean','align_pyr_clean','align_emg',...
